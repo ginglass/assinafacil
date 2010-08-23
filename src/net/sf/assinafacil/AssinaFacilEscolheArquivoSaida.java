@@ -4,24 +4,27 @@
  */
 
 /*
- * AssinaFacilEscolheArquivo.java
+ * AssinaFacilEscolheArquivoEntrada.java
  *
  * Created on 14/08/2010, 15:36:25
  */
 
-package assinafacil;
+package net.sf.assinafacil;
 
 import java.awt.Dialog.ModalExclusionType;
+import javax.swing.JFrame;
 
 /**
  *
  * @author Mario
  */
-public class AssinaFacilEscolheArquivo extends javax.swing.JFrame {
+public class AssinaFacilEscolheArquivoSaida extends javax.swing.JDialog {
 
-    /** Creates new form AssinaFacilEscolheArquivo */
-    public AssinaFacilEscolheArquivo() {
-        this.setModalExclusionType(ModalExclusionType.NO_EXCLUDE);
+    JFrame mainWindow;
+    /** Creates new form AssinaFacilEscolheArquivoEntrada */
+    public AssinaFacilEscolheArquivoSaida(JFrame mainWindow) {
+        super(mainWindow);
+        this.mainWindow = mainWindow;
         initComponents();
     }
 
@@ -37,11 +40,15 @@ public class AssinaFacilEscolheArquivo extends javax.swing.JFrame {
 
         jFileChooser1 = new javax.swing.JFileChooser();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        setName("Form"); // NOI18N
+        org.jdesktop.application.ResourceMap resourceMap = org.jdesktop.application.Application.getInstance(net.sf.assinafacil.AssinaFacilApp.class).getContext().getResourceMap(AssinaFacilEscolheArquivoSaida.class);
+        setTitle(resourceMap.getString("FormFileChooser.title")); // NOI18N
+        setAlwaysOnTop(true);
+        setModal(true);
+        setName("FormFileChooser"); // NOI18N
 
-        org.jdesktop.application.ResourceMap resourceMap = org.jdesktop.application.Application.getInstance(assinafacil.AssinaFacilApp.class).getContext().getResourceMap(AssinaFacilEscolheArquivo.class);
         jFileChooser1.setApproveButtonText(resourceMap.getString("jFileChooser1.approveButtonText")); // NOI18N
+        jFileChooser1.setCurrentDirectory(null);
+        jFileChooser1.setDialogType(javax.swing.JFileChooser.CUSTOM_DIALOG);
         jFileChooser1.setName("jFileChooser1"); // NOI18N
 
         org.jdesktop.beansbinding.Binding binding = org.jdesktop.beansbinding.Bindings.createAutoBinding(org.jdesktop.beansbinding.AutoBinding.UpdateStrategy.READ_WRITE, jFileChooser1, org.jdesktop.beansbinding.ELProperty.create("${fileFilter}"), jFileChooser1, org.jdesktop.beansbinding.BeanProperty.create("fileFilter"));
@@ -77,7 +84,7 @@ public class AssinaFacilEscolheArquivo extends javax.swing.JFrame {
 
     private void jFileChooser1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jFileChooser1ActionPerformed
         if (jFileChooser1.getSelectedFile()!=null)
-            AssinaFacilApp.getApplication().setArquivoSelecionado(jFileChooser1.getSelectedFile().getAbsolutePath());
+            AssinaFacilApp.getApplication().setSelectedOutputFile(jFileChooser1.getSelectedFile().getAbsolutePath());
         this.dispose();        // TODO add your handling code here:
     }//GEN-LAST:event_jFileChooser1ActionPerformed
 
