@@ -1,29 +1,25 @@
-package assinafacil;
+package net.sf.assinafacil;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.Provider;
 import java.security.Security;
 import java.security.cert.CertStore;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.cms.CMSException;
 
 import org.bouncycastle.cms.CMSProcessable;
@@ -90,7 +86,7 @@ public class AssinadorMSCAPI implements Assinador {
 	}
 
 	@Override
-	public String signFile(String fileInput, String password, String certificateAlias) throws Exception {
+	public String signFile(String fileInput, String signedFileName, String password, String certificateAlias) throws Exception {
         if (!isInitialized()) {
                 throw new java.security.KeyException("Chaveiro não inicializado ou erro ao acessá-lo.");
         }
@@ -103,17 +99,18 @@ public class AssinadorMSCAPI implements Assinador {
         CMSSignedData signedData = null;
         CMSProcessable content = null;
         byte[] signeddata = null;
-        String signedFileName = null;
+   
         String retorno;
+
+        if (signedFileName == null)
+            signedFileName = fileInput;
 
         certChain = keyStore.getCertificateChain(certificateAlias);
 
         if ( certChain == null ) {
                 throw new GeneralSecurityException("Cadeia do certificado "+ certificateAlias + " não encontrada.");
         }
-		
-	    for ( int i = 0; i < certChain.length;i++)
-	    	certList.add(certChain[i]);      
+        certList.addAll(Arrays.asList(certChain));
 	   
 	    certs = CertStore.getInstance("Collection", new CollectionCertStoreParameters(certList));
 
@@ -134,13 +131,12 @@ public class AssinadorMSCAPI implements Assinador {
             signGen.addCertificatesAndCRLs(signedData.getCertificatesAndCRLs("Collection", "BC"));
             CMSSignedData signedData2 = signGen.generate(content,true,providerString);
             signeddata = signedData2.getEncoded();
-            signedFileName = fileInput;
+          
             retorno = "Arquivo " + signedFileName + " foi assinado novamente.";
         } catch (CMSException e ) {
             content = new CMSProcessableFile(new File(fileInput));
             signedData = signGen.generate(content,true,providerString);
             signeddata = signedData.getEncoded();
-            signedFileName = fileInput + ".p7s";
             retorno = "Arquivo " + signedFileName + " foi assinado.";
         }
 
@@ -153,5 +149,20 @@ public class AssinadorMSCAPI implements Assinador {
 	@Override
 	public X509Certificate getCertificate(String alias) throws Exception {
         return (X509Certificate) keyStore.getCertificate(alias);
+    }
+
+    public boolean isSignedFile(String fileName) {
+        CMSSignedData signedData = null;
+         try {
+            signedData = new CMSSignedData(new FileInputStream(fileName));
+            return signedData.getContentInfo().getContentType().equals(org.bouncycastle.asn1.cms.CMSObjectIdentifiers.signedData);
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
+        } catch (CMSException ex ) {
+            // Malformed content.
+            //Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
+        }
     }
 }
