@@ -6,9 +6,22 @@ package net.sf.assinafacil;
 
 import org.jdesktop.application.Action;
 
+/**
+ * 
+ * @author ginglass
+ *
+ * Como todas as interfaces, os valores podem ser alterados a partir do arquivo
+ * de resource. É preciso reempacotar mas... é o defautl do NetBeans.
+ * 
+ */
 public class AssinaFacilAboutBox extends javax.swing.JDialog {
 
-    public AssinaFacilAboutBox(java.awt.Frame parent) {
+    /**
+	 * Gerado automaticamente...
+	 */
+	private static final long serialVersionUID = -3552534127992551299L;
+
+	public AssinaFacilAboutBox(java.awt.Frame parent) {
         super(parent);
         initComponents();
         getRootPane().setDefaultButton(closeButton);
