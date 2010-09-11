@@ -1,5 +1,13 @@
 package net.sf.assinafacil;
 
+/***
+ * Implementa o Assinador para o provider SunMSCAPI.
+ * S\u00f3 funciona com a vers\u00e3o 32bits pois a biblioteca nativa n\u00e3o foi distribuida
+ * pela oracle na versao 64bits.
+ * 
+ * author: ginglass
+ */
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -19,7 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
 import org.bouncycastle.cms.CMSException;
 
 import org.bouncycastle.cms.CMSProcessable;
@@ -31,8 +38,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 public class AssinadorMSCAPI implements Assinador {
 
 	public KeyStore keyStore = null;
-	public static final String keyStoreString = "Windows-MY";
-	public static final String providerString = "SunMSCAPI";
+	public static final String KEYSTORE_STRING = "Windows-MY";
+	public static final String PROVIDER_STRING = "SunMSCAPI";
 
 
 	public AssinadorMSCAPI() throws Exception {
@@ -40,14 +47,23 @@ public class AssinadorMSCAPI implements Assinador {
 		this.initialize(null);
 	}
 	
-	
+	/**
+	 * 	
+	 * @return true se suporta o provider SunMSCAPI
+	 */
 	public boolean supportsMSCAPI() {
-		if (Security.getProvider("SunMSCAPI")!= null) 
+		if (Security.getProvider(PROVIDER_STRING)!= null) 
 			return true;
-		else
-			return false;
+		else {
+			Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.INFO,"Ambiente n\u00e3o disp\u00f5e do SunMSCAPI");
+			return false;			
+		}
 	}
 	
+	/**
+	 * 
+	 * @return Mapa de certificados relacionados com seu respectivo apelido no keystore.
+	 */
 	@Override
 	public Map<String, X509Certificate> getAllKeyCertificates() throws Exception {
 		Map<String, X509Certificate> res = new HashMap<String, X509Certificate>();
@@ -62,22 +78,32 @@ public class AssinadorMSCAPI implements Assinador {
 	}
 
 	@Override
+	/**
+	 * @return KeyStore utilizado por esse assinador
+	 */
 	public KeyStore getKeyStore() throws Exception {
 		return keyStore;
 	}
 
 	@Override
+	/***
+	 * Inicializa o assinador. verifica o suporte ao provider e instancia 
+	 * o keystore que ser\u00e1 utilizado pelo assinador.
+	 */
 	public void initialize(String password) throws Exception {
 		if (!this.supportsMSCAPI()) {
-				throw new java.security.NoSuchProviderException("N�o suporta criptografia nativa Microsoft. � java 1.6 43 bits?");
+				throw new java.security.NoSuchProviderException("N\u00ef\u00bf\u00bdo suporta criptografia nativa Microsoft. \u00ef\u00bf\u00bd java 1.6 43 bits?");
 		}
-		keyStore = KeyStore.getInstance(keyStoreString);
+		keyStore = KeyStore.getInstance(KEYSTORE_STRING);
 		keyStore.load(null, null) ;
                 
 	}
 	
 
 	@Override
+	/***
+	 * @return true caso o Assinador j\u00e1 tenha sido inicializado
+	 */
 	public boolean isInitialized() {
 		if (this.keyStore != null) 
 			return true;
@@ -86,9 +112,16 @@ public class AssinadorMSCAPI implements Assinador {
 	}
 
 	@Override
+	/***
+	 * Assina digitalmente o arquivo de entrada e gera o arquivo de sa\u00edda.
+	 * nesse caso a senha n\u00e3o \u00e9 utilizada pois o keystore \u00e9 um token suja senha 
+	 * ser\u00e1 requerida pelo MSCAPI.
+	 * 
+	 * @return Mensagem de status que ser\u00e1 exibida na interface.
+	 */
 	public String signFile(String fileInput, String signedFileName, String password, String certificateAlias) throws Exception {
         if (!isInitialized()) {
-                throw new java.security.KeyException("Chaveiro não inicializado ou erro ao acessá-lo.");
+                throw new java.security.KeyException("Chaveiro n\u00c3\u00a3o inicializado ou erro ao acess\u00c3\u00a1-lo.");
         }
 
         PrivateKey priv = null;
@@ -108,7 +141,7 @@ public class AssinadorMSCAPI implements Assinador {
         certChain = keyStore.getCertificateChain(certificateAlias);
 
         if ( certChain == null ) {
-                throw new GeneralSecurityException("Cadeia do certificado "+ certificateAlias + " não encontrada.");
+                throw new GeneralSecurityException("Cadeia do certificado "+ certificateAlias + " n\u00c3\u00a3o encontrada.");
         }
         certList.addAll(Arrays.asList(certChain));
 	   
@@ -117,7 +150,7 @@ public class AssinadorMSCAPI implements Assinador {
 	    storecert = keyStore.getCertificate(certificateAlias);
 	    priv = (PrivateKey)(keyStore.getKey(certificateAlias, null));
 	    if (priv == null) {
-	    	throw new java.security.AccessControlException("Acesso à chave foi negado... senha inválida?");
+	    	throw new java.security.AccessControlException("Acesso \u00c3\u00a0 chave foi negado... senha inv\u00c3\u00a1lida?");
 	    }
 
         CMSSignedDataGenerator signGen = new CMSSignedDataGenerator();
@@ -129,39 +162,53 @@ public class AssinadorMSCAPI implements Assinador {
             content = signedData.getSignedContent();
             signGen.addSigners(signedData.getSignerInfos());
             signGen.addCertificatesAndCRLs(signedData.getCertificatesAndCRLs("Collection", "BC"));
-            CMSSignedData signedData2 = signGen.generate(content,true,providerString);
+            CMSSignedData signedData2 = signGen.generate(content,true,PROVIDER_STRING);
             signeddata = signedData2.getEncoded();
-          
+   
             retorno = "Arquivo " + signedFileName + " foi assinado novamente.";
+            
         } catch (CMSException e ) {
             content = new CMSProcessableFile(new File(fileInput));
-            signedData = signGen.generate(content,true,providerString);
+            signedData = signGen.generate(content,true,PROVIDER_STRING);
             signeddata = signedData.getEncoded();
+
+   
             retorno = "Arquivo " + signedFileName + " foi assinado.";
         }
 
         FileOutputStream  fileOutput = new FileOutputStream(signedFileName);
 	    fileOutput.write(signeddata);
 	    fileOutput.close();
-        return retorno;
+
+	    Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.INFO, retorno);
+        
+	    return retorno;
 	}
 
 	@Override
+	/***
+	 * Pega do keystore o certificado com determinado apelido
+	 */
 	public X509Certificate getCertificate(String alias) throws Exception {
         return (X509Certificate) keyStore.getCertificate(alias);
     }
 
+	/***
+	 * Verifica se o arquivo j\u00e1 foi assinado... feio pois identifica via exception...
+	 * mas \u00e9 r\u00e1pido e sei que desenvolvedores mais cuidadosos me ajudar\u00e3o a melhorar
+	 * inclusive esse trecho do c\u00f3digo.
+	 */
     public boolean isSignedFile(String fileName) {
         CMSSignedData signedData = null;
          try {
             signedData = new CMSSignedData(new FileInputStream(fileName));
             return signedData.getContentInfo().getContentType().equals(org.bouncycastle.asn1.cms.CMSObjectIdentifiers.signedData);
         } catch (FileNotFoundException ex) {
-            Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.INFO, "Arquivo " + fileName +" n\u00e3o encontrado", ex);
             return false;
         } catch (CMSException ex ) {
             // Malformed content.
-            //Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+            // DEBUG? Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
             return false;
         }
     }
