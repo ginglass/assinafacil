@@ -347,7 +347,7 @@ public class AssinaFacilView extends FrameView {
                     .add(progressBar, org.jdesktop.layout.GroupLayout.PREFERRED_SIZE, org.jdesktop.layout.GroupLayout.DEFAULT_SIZE, org.jdesktop.layout.GroupLayout.PREFERRED_SIZE))
                 .add(3, 3, 3))
         );
-
+ 
         setComponent(mainPanel);
         setMenuBar(menuBar);
         setStatusBar(statusPanel);
