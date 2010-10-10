@@ -417,7 +417,7 @@ public class AssinaFacilApp extends SingleFrameApplication {
 
             FilenameFilter filter = new FilenameFilter() {
                 public boolean accept(File dir, String name) {
-                   return !name.endsWith(".");
+                   return !name.startsWith(".");
                 }
             };
 
