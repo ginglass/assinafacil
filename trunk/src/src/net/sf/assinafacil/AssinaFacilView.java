@@ -195,7 +195,7 @@ public class AssinaFacilView extends FrameView {
         jButton4.setText(resourceMap.getString("jButton4.text")); // NOI18N
         jButton4.setName("jButton4"); // NOI18N
 
-        jButton5.setAction(actionMap.get("dumpSignersAndCersInfo")); // NOI18N
+        jButton5.setAction(actionMap.get("verifySignersAndShowInfo")); // NOI18N
         jButton5.setText(resourceMap.getString("jButton5.text")); // NOI18N
         jButton5.setName("jButton5"); // NOI18N
 
