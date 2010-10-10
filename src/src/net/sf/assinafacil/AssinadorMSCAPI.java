@@ -196,80 +196,8 @@ public class AssinadorMSCAPI implements Assinador {
 	    return retorno;
 	}
 	
-	@Override
-	public SignerInformationStore getSignatures(File fileInput) throws java.security.SignatureException, FileNotFoundException{
-		CMSSignedData signedData = null;
-
-		SignerInformationStore signers = null;
-		
-		try {
-			signedData = new CMSSignedData(new FileInputStream(fileInput));
-			signers = signedData.getSignerInfos();
-			
-			return signers;
-		
-		}  catch (CMSException e) {
-			throw new SignatureException("Arquivo n�o assinado ou formato inv�lido");
-		}
-	}
-
-	@Override
-	public CertStore getCertificates(File fileInput) throws java.security.SignatureException, FileNotFoundException{
-		CMSSignedData signedData = null;
-
-		CertStore certs = null;
-
-		try {
-			signedData = new CMSSignedData(new FileInputStream(fileInput));
-                        certs = signedData.getCertificatesAndCRLs("Collection", "BC");
-			return certs;
-
-                } catch (NoSuchAlgorithmException ex) {
-                    Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
-                    return null;
-                } catch (NoSuchProviderException ex) {
-                    Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
-                    return null;
-		}  catch (CMSException e) {
-			throw new SignatureException("Arquivo n�o assinado ou formato inv�lido");
-		}
-	}
 
 
-	@Override 
-	public byte[] getSignedContent(File fileInput) throws GeneralSecurityException, IOException {
-		CMSSignedData signedData = null;
-        CMSProcessable content = null;
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        
-		try {
-			signedData = new CMSSignedData(new FileInputStream(fileInput));
-			content = signedData.getSignedContent();
-			content.write(baos);
-			return baos.toByteArray();
-			
-		} catch (CMSException e ) {
-			throw new GeneralSecurityException("Arquivo n�o assinado ou formata��o inv�lida.");
-		}
-	}
-
-	@Override 
-	public boolean extractSignedContent(File fileInput, File fileOutput) throws GeneralSecurityException, IOException {
-		CMSSignedData signedData = null;
-        CMSProcessable content = null;
-        FileOutputStream fos = new FileOutputStream(fileOutput);
-        
-		try {
-			signedData = new CMSSignedData(new FileInputStream(fileInput));
-			content = signedData.getSignedContent();
-			content.write(fos);
-			fos.close();
-			return true;
-			
-		} catch (CMSException e ) {
-			throw new GeneralSecurityException("Arquivo n�o assinado ou formata��o inv�lida.");
-		}
-	}
 
 	@Override
 	/***

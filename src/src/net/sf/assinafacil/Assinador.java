@@ -37,13 +37,4 @@ public interface Assinador {
    
     public String signFile(String fileInput, String signedFileName, String password, String certificateAlias) throws Exception;
 
-	byte[] getSignedContent(File signedFile) throws GeneralSecurityException, IOException;
-
-	boolean extractSignedContent(File signedFile, File contentOutputFile)
-			throws GeneralSecurityException, IOException;
-
-	public SignerInformationStore getSignatures(File fileInput) throws SignatureException, SignatureException, FileNotFoundException;
-
-        public CertStore getCertificates(File fileInput) throws SignatureException, SignatureException, FileNotFoundException;
-
 }

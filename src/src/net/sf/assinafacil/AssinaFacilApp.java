@@ -4,6 +4,7 @@
 
 package net.sf.assinafacil;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -11,51 +12,47 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.math.BigInteger;
+import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathBuilderException;
-import java.security.cert.CertPathBuilderResult;
-import java.security.cert.CertSelector;
 import java.security.cert.CertStore;
 import java.security.cert.CertStoreException;
 import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
-import java.security.cert.CertificateParsingException;
 import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXCertPathBuilderResult;
-import java.security.cert.PKIXCertPathChecker;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.security.cert.CertificateException;
 import org.jdesktop.application.Action;
 import org.jdesktop.application.Application;
 import org.jdesktop.application.SingleFrameApplication;
-import net.sf.assinafacil.Assinador;
-import net.sf.assinafacil.AssinadorMSCAPI;
 import java.util.Set;
-import javax.security.auth.x500.X500Principal;
+import org.bouncycastle.asn1.cryptopro.CryptoProObjectIdentifiers;
+import org.bouncycastle.asn1.nist.NISTObjectIdentifiers;
+import org.bouncycastle.asn1.oiw.OIWObjectIdentifiers;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.teletrust.TeleTrusTObjectIdentifiers;
+import org.bouncycastle.cms.CMSException;
+import org.bouncycastle.cms.CMSProcessable;
+import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
-import org.bouncycastle.jce.X509Principal;
 
 /**
  * A classe principal da aplica\u00e7\u00e3o.
@@ -136,7 +133,7 @@ public class AssinaFacilApp extends SingleFrameApplication {
             String configFileName = null;
 
             if (args.length == 0) {
-                configFileName = this.CONFIG_FILE;
+                configFileName = AssinaFacilApp.CONFIG_FILE;
             } else {
                 configFileName = args[0];
             }
@@ -248,12 +245,12 @@ public class AssinaFacilApp extends SingleFrameApplication {
      */
     @Action
     public void inicializaCADIC() {
-        String selectedFile = mainWindow.getSelectedFile();
+        String selectedFileToCADIC = mainWindow.getSelectedFile();
         try {
-            if ((selectedFile!=null) && (!selectedFile.startsWith("Selecione")) && (!selectedFile.equals(""))) {
-                Runtime.getRuntime().exec("CADIC.exe \""+selectedFile+"\"");
-            	Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO,"Excecutando CADIC.exe \""+selectedFile+"\"");
-        	} else {
+            if ((selectedFileToCADIC!=null) && (!selectedFileToCADIC.startsWith("Selecione")) && (!selectedFileToCADIC.equals(""))) {
+                Runtime.getRuntime().exec("CADIC.exe \""+selectedFileToCADIC+"\"");
+            	Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "Excecutando CADIC.exe \"{0}\"", selectedFileToCADIC);
+            } else {
                 Runtime.getRuntime().exec("CADIC.exe");
                 Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO,"Excecutando CADIC.exe");
             }
@@ -265,19 +262,21 @@ public class AssinaFacilApp extends SingleFrameApplication {
     }
 
     @Action
-    public void dumpSignersAndCersInfo() {
+    public void verifySignersAndShowInfo() {
 
        Signature sig;
  
-       String selectedFile = mainWindow.getSelectedFile();
+       String selectedSignedFile = mainWindow.getSelectedFile();
        
-       if ((selectedFile == null) || (selectedFile.startsWith("Selecione")) || (selectedFile.equals(""))) {
+       if ((selectedSignedFile == null) || (selectedSignedFile.startsWith("Selecione")) || (selectedSignedFile.equals(""))) {
             mainWindow.setStatusMessage("Selecione o arquivo para verificação...");
             return;
        }
         try {
-            SignerInformationStore signerInformationStore = signer.getSignatures(new File(selectedFile));
-            CertStore certificateStore = signer.getCertificates(new File(selectedFile));
+            CertStore trustCertStore = this.buildTrustStore();
+
+            SignerInformationStore signerInformationStore = this.getSignatures(new File(selectedSignedFile));
+            CertStore certificateStore = this.getCertificates(new File(selectedSignedFile));
             
             Collection<? extends Certificate> certificates = certificateStore.getCertificates(null);
             Collection colSign = signerInformationStore.getSigners();
@@ -290,11 +289,11 @@ public class AssinaFacilApp extends SingleFrameApplication {
             for (Certificate cert : certificates) {
                 if (cert instanceof X509Certificate) {
                     X509Certificate x509Cert = (X509Certificate) cert;
+                    
                     // Pega só os root's CA
                     if ( ( x509Cert.getBasicConstraints()!= -1) && (x509Cert.getIssuerDN().getName().equals(x509Cert.getSubjectDN().getName())))
                         trustSet.add(new TrustAnchor(x509Cert,null));
 
-                    // Monta uma estrutura com a lista de certificados unicos
                     uniqueCerts.put(x509Cert.getSubjectX500Principal().getName()+"|"+x509Cert.getSerialNumber()+"|"+x509Cert.getIssuerDN(),x509Cert);
                 }
             }
@@ -336,70 +335,209 @@ public class AssinaFacilApp extends SingleFrameApplication {
 
             Iterator iteradorSigners = colSign.iterator();
 
+            Set<SignerData> signerTable = new HashSet();
+
             while (iteradorSigners.hasNext()) {
                 Object signObject = iteradorSigners.next();
-
                 if (signObject instanceof SignerInformation) {
-
                     SignerInformation signerInfo = (SignerInformation) signObject;
-
-                    /**** Não precisa mais criar o target
-                        // Pega o serialnumber e o issue (emissor) do signer
-                        BigInteger signerSerialNumber = signerInfo.getSID().getSerialNumber();
-                        X500Principal signerIssuer = signerInfo.getSID().getIssuer();
-                    ***/
-
-                    Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, signerInfo.getSID().getSerialNumber() + " => assinou com algoritmo " +signerInfo.getDigestAlgOID());
-                    
+                    X509Certificate signerCertificate = null;
+                    if (! certificateStore.getCertificates(signerInfo.getSID()).isEmpty())
+                        signerCertificate = (X509Certificate) certificateStore.getCertificates(signerInfo.getSID()).toArray()[0];
+                    else
+                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "{0} => assinou com algoritmo {1} mas nao ha certificado", new Object[]{signerInfo.getSID().getSerialNumber(), signerInfo.getDigestAlgOID()});
+                    //  Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "{0} => assinou com algoritmo {1}", new Object[]{signerInfo.getSID().getSerialNumber(), signerInfo.getDigestAlgOID()});
                     try {
-
-                        /** Não precisa selecionar - fica por enquanto para aprendizado...
-                           X509CertSelector target = new X509CertSelector();
-                           target.setSerialNumber(signerSerialNumber);
-                           target.setIssuer(signerIssuer);
-                        ****/
-
                         PKIXBuilderParameters params = new PKIXBuilderParameters(trustSet, signerInfo.getSID());
-
                         params.addCertStore(certificateStore);
-                        params.setRevocationEnabled(false);
 
+                        // TODO: Check CRL in validation process (do we have to include CRL in sign process?)
+                        params.setRevocationEnabled(false);
                         // Trata politica especifica da ICP
                         params.addCertPathChecker(new AssinaFacilExtPathChecker());
 
                         CertPathBuilder builder = CertPathBuilder.getInstance("PKIX","BC");
-
                         PKIXCertPathBuilderResult certChainResult = (PKIXCertPathBuilderResult) builder.build(params);
-
                         CertPath cp = certChainResult.getCertPath();
 
-                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "VALIDADO OK ["+cp+"]\n");
-
+                        boolean isICP = this.checkKnowTrust(certChainResult.getTrustAnchor().getTrustedCert(), trustCertStore);
+                        String signatureState = this.signatureState(signerInfo,signerCertificate);
+                        signerTable.add(new SignerData(signerInfo,cp,certChainResult.getTrustAnchor().getTrustedCert(),isICP,signatureState));
+                        
                     } catch (CertPathBuilderException ex) {
-                        // Não foi validado
-                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado " + ex.getMessage()+" ");
-
+                        String signatureState = this.signatureState(signerInfo,signerCertificate);
+                        signerTable.add(new SignerData(signerInfo,signerCertificate,signatureState));
                     } catch (InvalidAlgorithmParameterException ex) {
-                        // Não foi validado
-                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado " + ex.getMessage()+" ");
 
                     } catch (Exception ex) {
                         // Não foi validado
-                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado " + ex.getMessage()+" ");
+                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado {0} {1}", new Object[]{ex.getMessage(), ex});
                     }
-
                 }
             }
+            AssinaFacilSignerDetail afsov = new AssinaFacilSignerDetail(mainWindow.getFrame(), true, signerTable);
+            afsov.setVisible(true);
 
         } catch (IOException ex) {
+            mainWindow.setStatusMessage("Não foi possível extrair assinaturas do arquivo selecionado.");
             Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
         } catch (SignatureException ex) {
-            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            mainWindow.setStatusMessage("Não foi possível extrair assinaturas do arquivo selecionado.");
+            // Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
         } catch (CertStoreException ex) {
-                Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            mainWindow.setStatusMessage("Ocorreu um erro ao acessar os certificados armazenados.");
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
         }
 
     }
-    
+    private String signatureState(SignerInformation signerInfo,X509Certificate signerCertificate) {
+        try {
+           if (signerInfo.verify(signerCertificate, "BC") ) {
+               return "Assinatura OK com conteúdo";
+           } else
+               return "Assinatura não confere com conteúdo";
+
+        } catch (CMSException ex) {
+            return "Assinatura não confere com conteúdo";
+        } catch (GeneralSecurityException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return "Erro ao verificar assinatura";
+         } catch (Exception ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return "Erro ao verificar assinatura";
+         }
+    }
+
+    private CertStore buildTrustStore() {
+        try {
+            HashSet<X509Certificate> trustSetBuilder = new HashSet();
+
+            // Monta um keystore com base numa lista de certificados raiz confiavis
+            File dirAc = new File(configProperties.getICPRootCertificate());
+
+            FilenameFilter filter = new FilenameFilter() {
+                public boolean accept(File dir, String name) {
+                   return !name.endsWith(".");
+                }
+            };
+
+            InputStream inStream = null;
+
+            String[] caFiles = dirAc.list(filter);
+
+            for (String file : caFiles) {
+                inStream = new FileInputStream(configProperties.getICPRootCertificate() + "/" + file);
+
+                CertificateFactory cf = CertificateFactory.getInstance("X.509");
+                X509Certificate x509Cert = (X509Certificate) cf.generateCertificate(inStream);
+                inStream.close();
+
+                Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "IMPORT => " + x509Cert.getSubjectDN().getName());
+                trustSetBuilder.add(x509Cert);
+            }
+
+            // Cria um certstore com os certificados unicos que serão utilizados para montar a cadeia
+            CollectionCertStoreParameters certStoreParams = new CollectionCertStoreParameters(trustSetBuilder);
+            CertStore trustCertStore = CertStore.getInstance("Collection", certStoreParams, "BC");
+
+            return trustCertStore;
+        } catch (IOException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        } catch (CertificateException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        } catch (InvalidAlgorithmParameterException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        } catch (NoSuchProviderException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        }
+    }
+
+    private Boolean checkKnowTrust(X509Certificate trustCertificate, CertStore trustStore) {
+        try {
+            X509CertSelector certSelector = new X509CertSelector();
+            certSelector.setSubjectPublicKey(trustCertificate.getPublicKey());
+            return !trustStore.getCertificates(certSelector).isEmpty();
+        } catch (CertStoreException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
+        }
+
+    }
+
+    public CertStore getCertificates(File fileInput) throws java.security.SignatureException, FileNotFoundException{
+            CMSSignedData signedData = null;
+
+            CertStore certs = null;
+
+            try {
+                    signedData = new CMSSignedData(new FileInputStream(fileInput));
+                    certs = signedData.getCertificatesAndCRLs("Collection", "BC");
+                    return certs;
+
+            } catch (NoSuchAlgorithmException ex) {
+                Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+                return null;
+            } catch (NoSuchProviderException ex) {
+                Logger.getLogger(AssinadorMSCAPI.class.getName()).log(Level.SEVERE, null, ex);
+                return null;
+            }  catch (CMSException e) {
+                    throw new SignatureException("Arquivo n�o assinado ou formato inv�lido");
+            }
+    }
+
+    public byte[] getSignedContent(File fileInput) throws GeneralSecurityException, IOException {
+            CMSSignedData signedData = null;
+            CMSProcessable content = null;
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+            try {
+                    signedData = new CMSSignedData(new FileInputStream(fileInput));
+                    content = signedData.getSignedContent();
+                    content.write(baos);
+                    return baos.toByteArray();
+
+            } catch (CMSException e ) {
+                    throw new GeneralSecurityException("Arquivo n�o assinado ou formata��o inv�lida.");
+            }
+    }
+
+    public boolean extractSignedContent(File fileInput, File fileOutput) throws GeneralSecurityException, IOException {
+            CMSSignedData signedData = null;
+            CMSProcessable content = null;
+            FileOutputStream fos = new FileOutputStream(fileOutput);
+
+            try {
+                    signedData = new CMSSignedData(new FileInputStream(fileInput));
+                    content = signedData.getSignedContent();
+                    content.write(fos);
+                    fos.close();
+                    return true;
+
+            } catch (CMSException e ) {
+                    throw new GeneralSecurityException("Arquivo n�o assinado ou formata��o inv�lida.");
+            }
+    }
+	public SignerInformationStore getSignatures(File fileInput) throws java.security.SignatureException, FileNotFoundException{
+		CMSSignedData signedData = null;
+
+		SignerInformationStore signers = null;
+
+		try {
+			signedData = new CMSSignedData(new FileInputStream(fileInput));
+			signers = signedData.getSignerInfos();
+
+			return signers;
+
+		}  catch (CMSException e) {
+			throw new SignatureException("Arquivo n�o assinado ou formato inv�lido");
+		}
+	}
     
 }

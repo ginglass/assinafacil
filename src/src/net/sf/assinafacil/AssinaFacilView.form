@@ -139,7 +139,7 @@
         <Component class="javax.swing.JButton" name="jButton5">
           <Properties>
             <Property name="action" type="javax.swing.Action" editor="org.netbeans.modules.swingapp.ActionEditor">
-              <action class="net.sf.assinafacil.AssinaFacilApp" id="dumpSignersAndCersInfo" methodName="dumpSignersAndCersInfo"/>
+              <action class="net.sf.assinafacil.AssinaFacilApp" id="verifySignersAndShowInfo" methodName="verifySignersAndShowInfo"/>
             </Property>
             <Property name="text" type="java.lang.String" resourceKey="jButton5.text"/>
             <Property name="name" type="java.lang.String" value="jButton5" noResource="true"/>
