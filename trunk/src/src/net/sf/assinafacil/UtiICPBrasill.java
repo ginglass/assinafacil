@@ -33,7 +33,6 @@ import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.jce.provider.AnnotatedException;
 import org.bouncycastle.jce.provider.CertPathValidatorUtilities;
 import org.bouncycastle.jce.provider.RFC3280CertPathUtilities;
-import sun.security.x509.CRLDistributionPointsExtension;
 
 public class UtiICPBrasill {
 
