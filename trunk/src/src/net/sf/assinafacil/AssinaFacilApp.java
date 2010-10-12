@@ -12,12 +12,14 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.security.cert.CRL;
 import java.security.cert.CertPath;
 import java.security.cert.CertPathBuilder;
 import java.security.cert.CertPathBuilderException;
@@ -30,12 +32,15 @@ import java.security.cert.CollectionCertStoreParameters;
 import java.security.cert.PKIXBuilderParameters;
 import java.security.cert.PKIXCertPathBuilderResult;
 import java.security.cert.TrustAnchor;
+import java.security.cert.X509CRL;
+import java.security.cert.X509CRLSelector;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -264,8 +269,6 @@ public class AssinaFacilApp extends SingleFrameApplication {
     @Action
     public void verifySignersAndShowInfo() {
 
-       Signature sig;
- 
        String selectedSignedFile = mainWindow.getSelectedFile();
        
        if ((selectedSignedFile == null) || (selectedSignedFile.startsWith("Selecione")) || (selectedSignedFile.equals(""))) {
@@ -275,13 +278,15 @@ public class AssinaFacilApp extends SingleFrameApplication {
         try {
             CertStore trustCertStore = this.buildTrustStore();
 
+            CertStore crlCertStore = null;
+
             SignerInformationStore signerInformationStore = this.getSignatures(new File(selectedSignedFile));
             CertStore certificateStore = this.getCertificates(new File(selectedSignedFile));
             
             Collection<? extends Certificate> certificates = certificateStore.getCertificates(null);
             Collection colSign = signerInformationStore.getSigners();
 
-            HashMap<String,X509Certificate> uniqueCerts = new HashMap();
+            HashSet<X509CRL> crlCerts = new HashSet();
 
             HashSet<TrustAnchor> trustSet = new HashSet();
 
@@ -290,48 +295,19 @@ public class AssinaFacilApp extends SingleFrameApplication {
                 if (cert instanceof X509Certificate) {
                     X509Certificate x509Cert = (X509Certificate) cert;
                     
-                    // Pega só os root's CA
-                    if ( ( x509Cert.getBasicConstraints()!= -1) && (x509Cert.getIssuerDN().getName().equals(x509Cert.getSubjectDN().getName())))
-                        trustSet.add(new TrustAnchor(x509Cert,null));
+                    // Pega só os root's CA para o trust e as outras CAs para o CRLStore
+                    if (  x509Cert.getBasicConstraints()!= -1) {
+                        if ( (x509Cert.getIssuerDN().getName().equals(x509Cert.getSubjectDN().getName())))
+                            trustSet.add(new TrustAnchor(x509Cert,null));
 
-                    uniqueCerts.put(x509Cert.getSubjectX500Principal().getName()+"|"+x509Cert.getSerialNumber()+"|"+x509Cert.getIssuerDN(),x509Cert);
+                        X509CRL crl = UtiICPBrasill.getCRLFromDP(x509Cert);
+                        crlCerts.add(crl);
+                    }
                 }
             }
-
-            /*****
-             *  Trecho de aprendizado... muito interessante para criacao de keystore
-            // Cria um certstore com os certificados unicos que serão utilizados para montar a cadeia
-            CollectionCertStoreParameters certStoreParams = new CollectionCertStoreParameters(uniqueCerts.values());
-            CertStore uniqueCertStore = CertStore.getInstance("Collection", certStoreParams, "BC");
-
-            // Monta um keystore com base numa lista de certificados raiz confiavis
-            File dirAc = new File(configProperties.getICPRootCertificate());
-
-            FilenameFilter filter = new FilenameFilter() {
-                public boolean accept(File dir, String name) {
-                   return !name.endsWith(".");
-                }
-            };
-
-            KeyStore.PasswordProtection passKey = new KeyStore.PasswordProtection("casecret".toCharArray());
-            KeyStore trustKeyStore =  KeyStore.Builder.newInstance("JKS",null,passKey).getKeyStore();
-            
-            String[] caFiles = dirAc.list(filter);
-            for (String file : caFiles) {
-                 InputStream inStream = new FileInputStream(configProperties.getICPRootCertificate() + "/" + file);
-                 CertificateFactory cf = CertificateFactory.getInstance("X.509");
-                 X509Certificate x509Cert = (X509Certificate)cf.generateCertificate(inStream);
-                 inStream.close();
-//                 if ( ( x509Cert.getBasicConstraints()!= -1) && (x509Cert.getIssuerDN().getName().equals(x509Cert.getSubjectDN().getName())))
-                    trustKeyStore.setCertificateEntry(x509Cert.getSubjectDN().getName(), x509Cert);
-                 inStream.close();
-                 Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "INCLUINDO => " + x509Cert.getSubjectDN().getName() );
-            }
-
-            // Grava um jks com tudo
-            trustKeyStore.store(new FileOutputStream("acraiz.jks"), "casecret".toCharArray());
-
-            ****/
+             // Cria um certstore com as CRLS da cadeia
+            CollectionCertStoreParameters crlCertStoreParams = new CollectionCertStoreParameters(crlCerts);
+            crlCertStore = CertStore.getInstance("Collection", crlCertStoreParams, "BC");
 
             Iterator iteradorSigners = colSign.iterator();
 
@@ -344,15 +320,16 @@ public class AssinaFacilApp extends SingleFrameApplication {
                     X509Certificate signerCertificate = null;
                     if (! certificateStore.getCertificates(signerInfo.getSID()).isEmpty())
                         signerCertificate = (X509Certificate) certificateStore.getCertificates(signerInfo.getSID()).toArray()[0];
-                    else
-                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "{0} => assinou com algoritmo {1} mas nao ha certificado", new Object[]{signerInfo.getSID().getSerialNumber(), signerInfo.getDigestAlgOID()});
-                    //  Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.INFO, "{0} => assinou com algoritmo {1}", new Object[]{signerInfo.getSID().getSerialNumber(), signerInfo.getDigestAlgOID()});
+
                     try {
                         PKIXBuilderParameters params = new PKIXBuilderParameters(trustSet, signerInfo.getSID());
                         params.addCertStore(certificateStore);
+                        params.addCertStore(crlCertStore);
 
                         // TODO: Check CRL in validation process (do we have to include CRL in sign process?)
                         params.setRevocationEnabled(false);
+                        // It's better check CRLs after path building process to be concluded
+                        
                         // Trata politica especifica da ICP
                         params.addCertPathChecker(new AssinaFacilExtPathChecker());
 
@@ -360,24 +337,40 @@ public class AssinaFacilApp extends SingleFrameApplication {
                         PKIXCertPathBuilderResult certChainResult = (PKIXCertPathBuilderResult) builder.build(params);
                         CertPath cp = certChainResult.getCertPath();
 
+                        String revokeState = SignerData.OK;
+                        // Valida se os certificados da cadeia ainda esão válidos.
+
+                        for (Certificate certTest: cp.getCertificates()) {
+                            X509Certificate x509test = (X509Certificate) certTest;
+                            revokeState = this.getRevokeState(x509test, crlCertStore, revokeState);
+                        }
+                        revokeState = this.getRevokeState(certChainResult.getTrustAnchor().getTrustedCert(), crlCertStore, revokeState);
                         boolean isICP = this.checkKnowTrust(certChainResult.getTrustAnchor().getTrustedCert(), trustCertStore);
                         String signatureState = this.signatureState(signerInfo,signerCertificate);
-                        signerTable.add(new SignerData(signerInfo,cp,certChainResult.getTrustAnchor().getTrustedCert(),isICP,signatureState));
+                        signerTable.add(new SignerData(signerInfo,cp,certChainResult.getTrustAnchor().getTrustedCert(),isICP,signatureState,revokeState));
                         
                     } catch (CertPathBuilderException ex) {
+                        Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado {0} {1}", new Object[]{ex.getMessage(), ex});
                         String signatureState = this.signatureState(signerInfo,signerCertificate);
                         signerTable.add(new SignerData(signerInfo,signerCertificate,signatureState));
+
                     } catch (InvalidAlgorithmParameterException ex) {
 
                     } catch (Exception ex) {
-                        // Não foi validado
                         Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, "Nao Validado {0} {1}", new Object[]{ex.getMessage(), ex});
                     }
                 }
             }
+
             AssinaFacilSignerDetail afsov = new AssinaFacilSignerDetail(mainWindow.getFrame(), true, signerTable);
             afsov.setVisible(true);
 
+        } catch (InvalidAlgorithmParameterException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (NoSuchProviderException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
             mainWindow.setStatusMessage("Não foi possível extrair assinaturas do arquivo selecionado.");
             Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
@@ -390,6 +383,29 @@ public class AssinaFacilApp extends SingleFrameApplication {
         }
 
     }
+    private String getRevokeState(X509Certificate x509test, CertStore crlCertStore, String lastState) throws CertStoreException {
+        String revokeState = lastState;
+
+       
+        X509CRLSelector crlSelector = new X509CRLSelector();
+        crlSelector.addIssuer(x509test.getIssuerX500Principal());
+        Collection<X509CRL> crlTestList = (Collection<X509CRL>) crlCertStore.getCRLs(crlSelector);
+       
+        if ((crlTestList.isEmpty()) && (x509test.getBasicConstraints()!=-1)) {
+            // TODO: O certificado em questão não dispõe de CRL (avisa o usuario?)
+            revokeState = SignerData.NOCRL;
+        }
+
+        for(X509CRL x509crltest : crlTestList ) {
+            if (x509crltest.getRevokedCertificate(x509test.getSerialNumber())!=null) {
+                revokeState = SignerData.REVOKED;
+            }
+        }
+
+        return revokeState;
+    }
+
+
     private String signatureState(SignerInformation signerInfo,X509Certificate signerCertificate) {
         try {
            if (signerInfo.verify(signerCertificate, "BC") ) {
@@ -501,6 +517,7 @@ public class AssinaFacilApp extends SingleFrameApplication {
                     signedData = new CMSSignedData(new FileInputStream(fileInput));
                     content = signedData.getSignedContent();
                     content.write(baos);
+                    
                     return baos.toByteArray();
 
             } catch (CMSException e ) {
@@ -539,5 +556,34 @@ public class AssinaFacilApp extends SingleFrameApplication {
 			throw new SignatureException("Arquivo n�o assinado ou formato inv�lido");
 		}
 	}
+
+    @Action
+    public void showSignedContent() {
+        try {
+            byte [] content = this.getSignedContent( new File (selectedFile));
+            AssinaFacilShowContent afsc = new AssinaFacilShowContent(mainWindow.getFrame(), true,content);
+        } catch (GeneralSecurityException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(AssinaFacilApp.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+
+    @Action
+    public void extractContent() {
+        if (( selectedFile == null) || (signedFileName==null) ) {
+            mainWindow.setStatusMessage("Selecione os arquivos de entrada e saida...");
+            return;
+        }
+        try {
+            if (this.extractSignedContent(new File(selectedFile), new File(signedFileName))) {
+                this.mainWindow.setStatusMessageOK("Arquivo extraído...");
+            }
+        } catch (GeneralSecurityException ex) {
+            this.mainWindow.setStatusMessage("Erro ao extrair o arquivo..."+ex.getMessage());
+        } catch (IOException ex) {
+            this.mainWindow.setStatusMessage("Erro ao extrair o arquivo..."+ex.getMessage());
+        }
+    }
     
 }

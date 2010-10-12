@@ -156,13 +156,13 @@ public class AssinadorMSCAPI implements Assinador {
         }
         certList.addAll(Arrays.asList(certChain));
 	   
-	    certs = CertStore.getInstance("Collection", new CollectionCertStoreParameters(certList));
+        certs = CertStore.getInstance("Collection", new CollectionCertStoreParameters(certList));
 
-	    storecert = keyStore.getCertificate(certificateAlias);
-	    priv = (PrivateKey)(keyStore.getKey(certificateAlias, null));
-	    if (priv == null) {
-	    	throw new java.security.AccessControlException("Acesso \u00c3\u00a0 chave foi negado... senha inv\u00c3\u00a1lida?");
-	    }
+        storecert = keyStore.getCertificate(certificateAlias);
+        priv = (PrivateKey)(keyStore.getKey(certificateAlias, null));
+        if (priv == null) {
+            throw new java.security.AccessControlException("Acesso \u00c3\u00a0 chave foi negado... senha inv\u00c3\u00a1lida?");
+        }
 
         CMSSignedDataGenerator signGen = new CMSSignedDataGenerator();
         signGen.addSigner(priv, (X509Certificate)storecert, CMSSignedDataGenerator.DIGEST_SHA1);

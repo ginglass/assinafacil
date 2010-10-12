@@ -1,16 +1,39 @@
 package net.sf.assinafacil;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.security.NoSuchProviderException;
+import java.security.cert.CRLException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateParsingException;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.bouncycastle.asn1.*;
+import org.bouncycastle.asn1.x509.CRLDistPoint;
+import org.bouncycastle.asn1.x509.DistributionPoint;
+import org.bouncycastle.asn1.x509.DistributionPointName;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.X509Extensions;
+import org.bouncycastle.jce.provider.AnnotatedException;
+import org.bouncycastle.jce.provider.CertPathValidatorUtilities;
+import org.bouncycastle.jce.provider.RFC3280CertPathUtilities;
+import sun.security.x509.CRLDistributionPointsExtension;
 
 public class UtiICPBrasill {
 
@@ -138,4 +161,119 @@ public class UtiICPBrasill {
         String emissor = valor.substring(41);
         return new String[] {  dtnasc, cpf,pispasep,identidade,emissor  };
     }
+
+    public static X509CRL getCRLFromDP(X509Certificate x509Cert) {
+        try {
+            Vector<String> dps = getCrlDistributionPoint(x509Cert);
+            Iterator<String> iterador = dps.iterator();
+            while (iterador.hasNext()) {
+                String url = iterador.next();
+
+                System.out.println("CERTIFICADO  = "+x509Cert.getSubjectDN().getName());
+                System.out.println("DISTRIBUTION POINT = "+url);
+                X509CRL downloadedCrl = downloadCrl(url);
+                return downloadedCrl;
+
+            }
+        } catch (CertificateParsingException ex) {
+            Logger.getLogger(UtiICPBrasill.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        }
+        return null;
+    }
+
+       public static Vector getCrlDistributionPoint(X509Certificate certificate) throws CertificateParsingException {
+           try {
+                //  ---- alternative code ----------
+               byte[] val1 = certificate.getExtensionValue("2.5.29.31");
+               if (val1 == null) {
+                   return new Vector();
+               }
+               ASN1InputStream oAsnInStream = new ASN1InputStream(new ByteArrayInputStream(val1));
+               DERObject derObj = oAsnInStream.readObject();
+               DEROctetString dos = (DEROctetString)derObj;
+               byte[] val2 = dos.getOctets();
+               ASN1InputStream oAsnInStream2 = new ASN1InputStream(new ByteArrayInputStream(val2));
+               DERObject derObj2 = oAsnInStream2.readObject();
+               Vector urls = getDERValue(derObj2);
+               return urls;
+           } catch (Exception e) {
+               e.printStackTrace();
+               throw new CertificateParsingException(e.toString());
+           }
+       }
+
+       private static Vector getDERValue(DERObject derObj){
+             if (derObj instanceof DERSequence){
+                 Vector ret = new Vector();
+                 DERSequence seq = (DERSequence)derObj;
+                 Enumeration enume = seq.getObjects();
+                 while (enume.hasMoreElements()){
+                     DERObject nestedObj = (DERObject)enume.nextElement();
+                     Vector appo = getDERValue(nestedObj);
+                     if (appo != null){
+                        ret.addAll(appo);
+                     }
+                 }
+                 return ret;
+             }
+
+             if (derObj instanceof DERTaggedObject){
+                 DERTaggedObject derTag = (DERTaggedObject)derObj;
+                 if(derTag.isExplicit()&&!derTag.isEmpty()){
+                     DERObject nestedObj = derTag.getObject();
+                     Vector ret = getDERValue(nestedObj);
+                     return ret;
+                 } else {
+                     DEROctetString derOct =
+(DEROctetString)derTag.getObject();
+                     String val = new String(derOct.getOctets());
+                     Vector ret = new Vector();
+                     ret.add(val);
+                     return ret;
+                 }
+             }
+             return null;
+  }
+
+   /**
+   * Downloads a crl from the given URL.
+   *
+   * @param urlString the url from which to download the crl
+   *
+   * @exception Exception if an error occurs when downloading or parsing
+   *                      the crl
+   */
+  public static X509CRL downloadCrl(String urlString) {
+   
+        X509CRL crl = null;
+        InputStream is = null;
+
+        try {
+            URL url = new URL(urlString);
+            URLConnection con = url.openConnection();
+            is = con.getInputStream();
+
+            CertificateFactory certFactory = CertificateFactory.getInstance("X509","BC");
+
+            crl = (X509CRL) certFactory.generateCRL(is);
+
+        } catch (NoSuchProviderException ex) {
+            Logger.getLogger(UtiICPBrasill.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (CertificateException ex) {
+            Logger.getLogger(UtiICPBrasill.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(UtiICPBrasill.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (CRLException ex) {
+            Logger.getLogger(UtiICPBrasill.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException ex) {
+                }
+            }
+            return crl;
+        }
+  }
 }

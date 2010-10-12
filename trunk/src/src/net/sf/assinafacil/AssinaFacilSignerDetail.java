@@ -36,7 +36,7 @@ public class AssinaFacilSignerDetail extends javax.swing.JDialog {
         this.signers = new Vector<SignerData>(signers);
         asTableModel = new DefaultTableModel();
         asTableModel.setColumnIdentifiers( new String [] {
-                 "Assinador", "Data Assinatura", "Válido ICP", "Validade","Estado assinatura"
+                 "Assinador", "Data Assinatura", "Válido ICP", "Validade","Estado assinatura","Revogado"
             }
         );
 
@@ -58,7 +58,8 @@ public class AssinaFacilSignerDetail extends javax.swing.JDialog {
                 signerData.getDateSign(),
                 signerData.getIsICPValidate(),
                 signerData.getCertificateValidity(),
-                signerData.getSignerState()
+                signerData.getSignerState(),
+                signerData.getRevokeState()
                 }
             );
         }
@@ -256,7 +257,10 @@ public class AssinaFacilSignerDetail extends javax.swing.JDialog {
 
         SignerData signerDetail = signers.get(rowSelected);
         CertPath cp = signerDetail.getCertificatePath();
-
+        if (signerDetail.getCertificatePath() == null) {
+            jTextArea1.setText("O caminho do certificado não pode ser construido ou validado... desmarque a opção \"validar CRL\" e tente novamente.\n");
+            return;
+        }
         for (X509Certificate x509Cert : (List<X509Certificate>) cp.getCertificates()) {
             detailTableModel.addRow(new Object[] {
                 x509Cert.getSubjectDN(),
@@ -274,12 +278,16 @@ public class AssinaFacilSignerDetail extends javax.swing.JDialog {
     }
 
     private void showCertDetail(int selectedRow) {
-        System.err.println("Linha "+selectedRow);
+        
         if (selectedRow == -1) {
             this.jTextArea1.setText("Selecione um certificado...");
         }
         SignerData signerDetail = signers.get(lastSelectedSigner);
 
+        if (signerDetail.getCertificatePath() == null) {
+            jTextArea1.setText("O caminho do certificado não pode ser construido ou validado... desmarque a opção \"validar CRL\" e tente novamente.\n");
+            return;
+        }
         List cp = signerDetail.getCertificatePath().getCertificates();
         
         X509Certificate x509Cert;
