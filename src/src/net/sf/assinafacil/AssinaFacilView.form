@@ -130,7 +130,7 @@
         <Component class="javax.swing.JButton" name="jButton4">
           <Properties>
             <Property name="action" type="javax.swing.Action" editor="org.netbeans.modules.swingapp.ActionEditor">
-              <action class="net.sf.assinafacil.AssinaFacilApp" id="inicializaCADIC" methodName="inicializaCADIC"/>
+              <action class="net.sf.assinafacil.AssinaFacilApp" id="extractContent" methodName="extractContent"/>
             </Property>
             <Property name="text" type="java.lang.String" resourceKey="jButton4.text"/>
             <Property name="name" type="java.lang.String" value="jButton4" noResource="true"/>
@@ -148,7 +148,7 @@
         <Component class="javax.swing.JButton" name="jButton6">
           <Properties>
             <Property name="action" type="javax.swing.Action" editor="org.netbeans.modules.swingapp.ActionEditor">
-              <action class="net.sf.assinafacil.AssinaFacilApp" id="inicializaCADIC" methodName="inicializaCADIC"/>
+              <action class="net.sf.assinafacil.AssinaFacilApp" id="showSignedContent" methodName="showSignedContent"/>
             </Property>
             <Property name="text" type="java.lang.String" resourceKey="jButton6.text"/>
             <Property name="name" type="java.lang.String" value="jButton6" noResource="true"/>

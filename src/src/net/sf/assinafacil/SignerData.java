@@ -31,9 +31,15 @@ class SignerData {
     private CertPath certificatePath;
     private X509Certificate trustCert;
     private String signatureState;
+    private String revokeState;
 
+    public static final String OK = "OK";
+    public static final String REVOKED = "Revogado";
+    public static final String PARTIAL = "Algum da cadeia revogado"; // Just for test
+    public static final String NOCRL = "Não há CRL disponível para toda cadeia";
 
-    public SignerData (SignerInformation signerInfo, CertPath certPath, X509Certificate trust, boolean isICP, String signatureState) {
+    public SignerData (SignerInformation signerInfo, CertPath certPath, X509Certificate trust, boolean isICP, String signatureState, String revokeState) {
+
         signCertificate = (X509Certificate) certPath.getCertificates().get(0);
         name = signCertificate.getSubjectX500Principal().getName();
         StringTokenizer iteradorValores = new StringTokenizer(name,",");
@@ -45,6 +51,7 @@ class SignerData {
 
         this.trustCert = trust;
 
+
         try {
             Attribute atributo = (Attribute) signerInfo.getSignedAttributes().get(new DERObjectIdentifier("1.2.840.113549.1.9.5"));
             dateSign = new DERUTCTime(atributo.getAttrValues().getObjectAt(0).toString()).getDate();
@@ -55,6 +62,7 @@ class SignerData {
         certificatePath = certPath;
         this.isICPValidate = isICP;
         this.signatureState = signatureState;
+        this.revokeState = revokeState;
 
     }
 
@@ -82,6 +90,7 @@ class SignerData {
         certificatePath = null;
         this.isICPValidate = false;
         this.signatureState = signatureState;
+        this.revokeState = SignerData.NOCRL;
     }
 
     public Date getDateSign() {
@@ -147,6 +156,10 @@ class SignerData {
 
     public void setCertificatePath(CertPath certificatePath) {
         this.certificatePath = certificatePath;
+    }
+
+    Object getRevokeState() {
+       return this.revokeState;
     }
 
 }

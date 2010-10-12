@@ -191,7 +191,7 @@ public class AssinaFacilView extends FrameView {
         jButton3.setText(resourceMap.getString("jButton3.text")); // NOI18N
         jButton3.setName("jButton3"); // NOI18N
 
-        jButton4.setAction(actionMap.get("inicializaCADIC")); // NOI18N
+        jButton4.setAction(actionMap.get("extractContent")); // NOI18N
         jButton4.setText(resourceMap.getString("jButton4.text")); // NOI18N
         jButton4.setName("jButton4"); // NOI18N
 
@@ -199,7 +199,7 @@ public class AssinaFacilView extends FrameView {
         jButton5.setText(resourceMap.getString("jButton5.text")); // NOI18N
         jButton5.setName("jButton5"); // NOI18N
 
-        jButton6.setAction(actionMap.get("inicializaCADIC")); // NOI18N
+        jButton6.setAction(actionMap.get("showSignedContent")); // NOI18N
         jButton6.setText(resourceMap.getString("jButton6.text")); // NOI18N
         jButton6.setName("jButton6"); // NOI18N
 
@@ -412,13 +412,14 @@ public class AssinaFacilView extends FrameView {
     }
 
     void setStatusMessage(String message) {
+        statusMessageLabel.setForeground(Color.RED);
         statusMessageLabel.setText(message);
     }
 
     void setStatusMessageOK(String message) {
         statusMessageLabel.setForeground(Color.BLUE);
         statusMessageLabel.setText(message);
-        jTextField2.setText("Arquivo assinado...");
+        //jTextField2.setText("Arquivo assinado...");
     }
 
     String getSelectedAlias() {
