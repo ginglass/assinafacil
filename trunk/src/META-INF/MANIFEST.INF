@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Ant-Version: Apache Ant 1.8.1
+Created-By: 1.6.0_21-b07 (Sun Microsystems Inc.)
+Main-Class: net.sf.assinafacil.AssinaFacilApp
+SplashScreen-Image: META-INF/splash.png
+Class-Path: lib/appframework-1.0.3.jar lib/swing-worker-1.1.jar lib/bc
+ mail-jdk16-145.jar lib/bcprov-jdk16-145.jar lib/beansbinding-1.2.1.ja
+ r
+X-COMMENT: Main-Class will be added automatically by build
+
